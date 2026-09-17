@@ -1,65 +1,129 @@
-import inspect
-import os
-from datetime import datetime
+from enum import Enum
+from colorama import Fore, Style, init    # Used to apply colors to console output.
+from datetime import datetime             # Used to generate timestamps.
+import inspect                            # Used to inspect the call stack.
+from pathlib import Path                  # Used to manipulate file paths.
+from LogFile import LogFile       # Used to store log messages into a file.
 
-from colorama import Fore, Style, init
+
+# Defines all available console message types.
+class ConsoleType(Enum):
+    LOG = "LOG"
+    INFO = "INFO"
+    WARN = "WARN"
+    ERROR = "ERROR"
+    DEBUG = "DEBUG"
+    SUCCESS = "SUCCESS"
 
 
+# Initializes Colorama and automatically resets colors after each print.
 init(autoreset=True)
 
 
 class Console:
 
-    _colors = {
+    # Controls whether debug messages should be displayed.
+    __debug_is_active = True
+
+    # Maps each log level to its respective console color.
+    COLORS = {
         "LOG": Fore.WHITE,
-        "DEBUG": Fore.LIGHTCYAN_EX,
-        "INFO": Fore.LIGHTGREEN_EX,
-        "WARN": Fore.LIGHTYELLOW_EX,
-        "ERROR": Fore.LIGHTRED_EX
+        "INFO": Fore.CYAN,
+        "WARN": Fore.YELLOW,
+        "ERROR": Fore.RED,
+        "SUCCESS": Fore.GREEN,
+        "DEBUG": Fore.MAGENTA,
     }
 
-    @staticmethod
-    def _log(tipo, mensagem):
-        frame = inspect.currentframe().f_back.f_back
+    @classmethod
+    def _caller_file(cls):
+        """
+        Returns the filename that initiated the current log call.
+        """
+        frame = inspect.stack()[3]
+        return Path(frame.filename).name
 
-        arquivo = os.path.basename(frame.f_code.co_filename)
-        linha = frame.f_lineno
+    @classmethod
+    def __write(cls, level: str, message: str):
 
+        # Generates the current timestamp.
         timestamp = datetime.now().strftime("%H:%M:%S")
 
-        cor = Console._colors.get(tipo, Fore.WHITE)
+        # Gets the filename of the calling script.
+        filename = cls._caller_file()
 
-        tipo_formatado = f"[{tipo}]".ljust(9)
-        local_formatado = f"{arquivo}:{linha}".ljust(20)
+        # Retrieves the color configured for the current log level.
+        level_color = cls.COLORS[level]
 
+        # Prints a formatted and colored message to the terminal.
         print(
-            f"{Fore.LIGHTBLACK_EX}{timestamp} "
-            f"{cor}{tipo_formatado}"
-            f"{Fore.LIGHTBLUE_EX}{local_formatado}"
-            f"{Style.RESET_ALL}{mensagem}"
+            f"{Fore.LIGHTBLACK_EX}{timestamp}{Style.RESET_ALL} "
+            f"{level_color}{level:<8}{Style.RESET_ALL} "
+            f"{Fore.LIGHTBLACK_EX}[{filename}]{Style.RESET_ALL} "
+            f"{message}"
         )
 
-    @staticmethod
-    def log(mensagem):
-        Console._log("LOG", mensagem)
+        # Creates a plain-text version of the log entry for file storage.
+        raw_text = (
+            f"{timestamp} "
+            f"{level:<8} "
+            f"[{filename}] "
+            f"{message}"
+        )
 
-    @staticmethod
-    def debug(mensagem):
-        Console._log("DEBUG", mensagem)
+        # Adds the log entry to the log file buffer.
+        LogFile.append(raw_text)
 
-    @staticmethod
-    def info(mensagem):
-        Console._log("INFO", mensagem)
+    @classmethod
+    def log(cls, message):
+        """
+        Writes a generic log message.
+        """
+        cls.__write("LOG", message)
 
-    @staticmethod
-    def warn(mensagem):
-        Console._log("WARN", mensagem)
+    @classmethod
+    def info(cls, message):
+        """
+        Writes an informational message.
+        """
+        cls.__write("INFO", message)
 
-    @staticmethod
-    def error(mensagem):
-        Console._log("ERROR", mensagem)
+    @classmethod
+    def warn(cls, message):
+        """
+        Writes a warning message.
+        """
+        cls.__write("WARN", message)
 
+    @classmethod
+    def error(cls, message):
+        """
+        Writes an error message.
+        """
+        cls.__write("ERROR", message)
 
-console = Console()
+    @classmethod
+    def success(cls, message):
+        """
+        Writes a success message.
+        """
+        cls.__write("SUCCESS", message)
 
-console.log('olá!')
+    @classmethod
+    def debug(cls, message):
+        """
+        Writes a debug message only when debug mode is enabled.
+        """
+        if(cls.__debug_is_active == True):
+            cls.__write("DEBUG", message)
+
+    @classmethod
+    def set_debug_mode(cls, state: bool):
+        """
+        Enables or disables debug messages.
+        """
+        cls.__debug_is_active = state
+
+    @classmethod
+    def is_debug_mode_active(cls):
+        return cls.__debug_is_active
